@@ -7,20 +7,25 @@ import os
 from dotenv import load_dotenv
 from typing import Any, List
 from typing_extensions import Literal
-import google.generativeai as genai # type: ignore
-from langchain_core.messages import SystemMessage, BaseMessage # type: ignore
-from langchain_core.runnables import RunnableConfig # type: ignore
-from langchain.tools import tool # type: ignore
-from langgraph.graph import StateGraph, END # type: ignore
-from langgraph.types import Command # type: ignore
-from langgraph.graph import MessagesState # type: ignore
-from langgraph.prebuilt import ToolNode # type: ignore
+import google.generativeai as genai  # type: ignore
+from langchain_core.messages import SystemMessage, BaseMessage, AIMessage, HumanMessage  # type: ignore
+from langchain_core.runnables import RunnableConfig  # type: ignore
+from langchain.tools import tool  # type: ignore
+from langgraph.graph import StateGraph, END  # type: ignore
+from langgraph.types import Command  # type: ignore
+from langgraph.graph import MessagesState  # type: ignore
+from langgraph.prebuilt import ToolNode  # type: ignore
 
+# ==========================================================
+
+# Load environment variables
+load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
+# ==========================================================
 
 class AgentState(MessagesState):
     """
@@ -34,6 +39,7 @@ class AgentState(MessagesState):
     tools: List[Any]
     # your_custom_agent_state: str = ""
 
+# ==========================================================
 
 @tool
 def get_weather(location: str):
@@ -42,47 +48,49 @@ def get_weather(location: str):
     """
     return f"The weather for {location} is 70 degrees."
 
-
 # Backend tools list
 backend_tools = [
     get_weather
 ]
 
+# ==========================================================
+
 # Extract tool names from backend_tools for comparison
 backend_tool_names = [tool.name for tool in backend_tools]
 
+# ==========================================================
 
 async def chat_node(state: AgentState, config: RunnableConfig) -> Command[Literal["tool_node", "__end__"]]:
     """
     Standard chat node adapted for Gemini.
     """
-
     # 1. Define the system prompt
     system_message = f"You are a helpful assistant. The current proverbs are {state.get('proverbs', [])}."
 
-    # 2. Collect user messages
-    user_messages = [msg.content for msg in state["messages"]]
+    # 2. Collect messages and create the prompt
+    messages_to_send = []
+    for msg in state["messages"]:
+        if isinstance(msg, HumanMessage):
+            messages_to_send.append(msg.content)
+        # Diğer mesaj tiplerini de burada işleyebilirsiniz
 
-    # 3. Send to Gemini
-    prompt = system_message + "\n\n" + "\n".join(user_messages)
+    prompt = system_message + "\n\n" + "\n".join(messages_to_send)
+
+    # 3. Send prompt to Gemini model
     response = model.generate_content(prompt)
-
-    # 4. Wrap Gemini response into BaseMessage-like dict
-    class GeminiMessage:
-        def __init__(self, text):
-            self.content = text
-            self.tool_calls = []  # Gemini doesn’t have native tool calls
-
-    response_message = GeminiMessage(response.text)
+    
+    # 4. Gemini yanıtını standart bir AIMessage'a dönüştür.
+    ai_message = AIMessage(content=response.text)
 
     # No tool routing (Gemini doesn’t handle tool calls natively here)
     return Command(
         goto=END,
         update={
-            "messages": [response_message],
+            "messages": [ai_message],
         }
     )
 
+# ==========================================================
 
 def route_to_tool_node(response: BaseMessage):
     """
@@ -97,6 +105,7 @@ def route_to_tool_node(response: BaseMessage):
             return True
     return False
 
+# ==========================================================
 
 # Define the workflow graph
 workflow = StateGraph(AgentState)

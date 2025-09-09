@@ -23,7 +23,7 @@ export default function CopilotKitPage() {
 
   return (
     <CopilotKit
-      runtimeUrl="http://localhost:3000/copilotkit" 
+      runtimeUrl="/copilotkit" 
       transcribeAudioUrl="http://localhost:8123/api/transcribe"
       textToSpeechUrl="http://localhost:8123/api/tts"
     >

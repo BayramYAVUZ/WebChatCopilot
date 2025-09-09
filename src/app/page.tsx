@@ -1,5 +1,6 @@
 "use client";
 
+import { CopilotKit } from "@copilotkit/react-core"; // Bu satır eklendi
 import { useCoAgent, useCopilotAction } from "@copilotkit/react-core";
 import { CopilotKitCSSProperties, CopilotSidebar } from "@copilotkit/react-ui";
 import { useState } from "react";
@@ -13,7 +14,7 @@ export default function CopilotKitPage() {
     parameters: [{
       name: "themeColor",
       description: "The theme color to set. Make sure to pick nice colors.",
-      required: true, 
+      required: true,
     }],
     handler({ themeColor }) {
       setThemeColor(themeColor);
@@ -21,17 +22,23 @@ export default function CopilotKitPage() {
   });
 
   return (
-    <main style={{ "--copilot-kit-primary-color": themeColor } as CopilotKitCSSProperties}>
-      <YourMainContent themeColor={themeColor} />
-      <CopilotSidebar
-        clickOutsideToClose={false}
-        defaultOpen={true}
-        labels={{
-          title: "Popup Assistant",
-          initial: "👋 Hi, there! You're chatting with an agent. This agent comes with a few tools to get you started.\n\nFor example you can try:\n- **Frontend Tools**: \"Set the theme to orange\"\n- **Shared State**: \"Write a proverb about AI\"\n- **Generative UI**: \"Get the weather in SF\"\n\nAs you interact with the agent, you'll see the UI update in real-time to reflect the agent's **state**, **tool calls**, and **progress**."
-        }}
-      />
-    </main>
+    <CopilotKit
+      runtimeUrl="http://localhost:8123/copilotkit" 
+      transcribeAudioUrl="http://localhost:8123/api/transcribe"
+      textToSpeechUrl="http://localhost:8123/api/tts"
+    >
+      <main style={{ "--copilot-kit-primary-color": themeColor } as CopilotKitCSSProperties}>
+        <YourMainContent themeColor={themeColor} />
+        <CopilotSidebar
+          clickOutsideToClose={false}
+          defaultOpen={true}
+          labels={{
+            title: "Popup Assistant",
+            initial: "👋 Hi, there! You're chatting with an agent. This agent comes with a few tools to get you started.\n\nFor example you can try:\n- **Frontend Tools**: \"Set the theme to orange\"\n- **Shared State**: \"Write a proverb about AI\"\n- **Generative UI**: \"Get the weather in SF\"\n\nAs you interact with the agent, you'll see the UI update in real-time to reflect the agent's **state**, **tool calls**, and **progress**."
+          }}
+        />
+      </main>
+    </CopilotKit>
   );
 }
 
@@ -91,12 +98,12 @@ function YourMainContent({ themeColor }: { themeColor: string }) {
         <hr className="border-white/20 my-6" />
         <div className="flex flex-col gap-3">
           {state.proverbs?.map((proverb, index) => (
-            <div 
-              key={index} 
+            <div
+              key={index}
               className="bg-white/15 p-4 rounded-xl text-white relative group hover:bg-white/20 transition-all"
             >
               <p className="pr-8">{proverb}</p>
-              <button 
+              <button
                 onClick={() => setState({
                   ...state,
                   proverbs: (state.proverbs || []).filter((_, i) => i !== index),
@@ -117,7 +124,6 @@ function YourMainContent({ themeColor }: { themeColor: string }) {
   );
 }
 
-// Simple sun icon for the weather card
 function SunIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-14 h-14 text-yellow-200">
@@ -127,45 +133,43 @@ function SunIcon() {
   );
 }
 
-// Weather card component where the location and themeColor are based on what the agent
-// sets via tool calls.
 function WeatherCard({ location, themeColor }: { location?: string, themeColor: string }) {
   return (
     <div
-    style={{ backgroundColor: themeColor }}
-    className="rounded-xl shadow-xl mt-6 mb-4 max-w-md w-full"
-  >
-    <div className="bg-white/20 p-4 w-full">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-bold text-white capitalize">{location}</h3>
-          <p className="text-white">Current Weather</p>
+      style={{ backgroundColor: themeColor }}
+      className="rounded-xl shadow-xl mt-6 mb-4 max-w-md w-full"
+    >
+      <div className="bg-white/20 p-4 w-full">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-white capitalize">{location}</h3>
+            <p className="text-white">Current Weather</p>
+          </div>
+          <SunIcon />
         </div>
-        <SunIcon />
-      </div>
-      
-      <div className="mt-4 flex items-end justify-between">
-        <div className="text-3xl font-bold text-white">70°</div>
-        <div className="text-sm text-white">Clear skies</div>
-      </div>
-      
-      <div className="mt-4 pt-4 border-t border-white">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-white text-xs">Humidity</p>
-            <p className="text-white font-medium">45%</p>
-          </div>
-          <div>
-            <p className="text-white text-xs">Wind</p>
-            <p className="text-white font-medium">5 mph</p>
-          </div>
-          <div>
-            <p className="text-white text-xs">Feels Like</p>
-            <p className="text-white font-medium">72°</p>
+
+        <div className="mt-4 flex items-end justify-between">
+          <div className="text-3xl font-bold text-white">70°</div>
+          <div className="text-sm text-white">Clear skies</div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-white">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-white text-xs">Humidity</p>
+              <p className="text-white font-medium">45%</p>
+            </div>
+            <div>
+              <p className="text-white text-xs">Wind</p>
+              <p className="text-white font-medium">5 mph</p>
+            </div>
+            <div>
+              <p className="text-white text-xs">Feels Like</p>
+              <p className="text-white font-medium">72°</p>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
   );
 }

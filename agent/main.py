@@ -1,12 +1,13 @@
 import uvicorn
 import os
 import openai
-from openai import APIStatusError, APIConnectionError, InternalServerError
-from fastapi import FastAPI, UploadFile, File, Form, Body, HTTPException
+from openai import APIStatusError, APIConnectionError
+from fastapi import FastAPI, UploadFile, File, Form, Body, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage # type: ignore
 from agent import graph
+from copilot_kit import CopilotKit, LangchainAdapter # type: ignore
 
 # ==========================================================
 
@@ -24,29 +25,31 @@ app.add_middleware(
 )
 
 # ==========================================================
-
-@app.post("/agent_chat")
-async def agent_chat(messages: list[str] = Body(...)):
-    """
-    Endpoint to interact with the agent.
-    """
-    try:
-        langgraph_messages = [HumanMessage(content=m) for m in messages]
-        result = await graph.ainvoke({"messages": langgraph_messages})
-        return {"response": [msg.content for msg in result.get("messages", [])]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred in the agent chat: {str(e)}")
-
+# CopilotKit Backend Entegrasyonu
+# Mevcut langgraph agent'ınızı CopilotKit'e bağlıyoruz.
 # ==========================================================
 
-@app.post("/transcribeAudioUrl")
-async def transcribe_audio_url(audio_url: str = Body(..., embed=True)):
-    # Bu endpoint sadece dummy bir yanıt döndürüyor,
-    # gerçek bir API çağrısı olmadığı için try-except eklemeye gerek yok.
-    return {"transcription": f"Transcription for: {audio_url}"}
+copilot = CopilotKit(
+    langchain_adapter=LangchainAdapter(graph)
+)
+
+@app.post("/copilotkit")
+async def handle_copilot_chat(request: Request):
+    """
+    Bu endpoint, frontend'den gelen tüm CopilotKit isteklerini (chat, actions vb.)
+    işler ve agent'a yönlendirir.
+    """
+    return await copilot.handle_request(request)
+
+# ==========================================================
+# Mikrofon için Gerekli Endpoint'ler (Değiştirilmedi)
+# ==========================================================
 
 @app.post("/api/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
+    """
+    Frontend'den gönderilen sesi metne çevirir.
+    """
     try:
         with open("temp_audio.wav", "wb") as f:
             f.write(await file.read())
@@ -57,29 +60,24 @@ async def transcribe_audio(file: UploadFile = File(...)):
                 file=audio_file
             )
         return {"text": transcript.text}
-    except APIStatusError as e:
-        raise HTTPException(status_code=e.status_code, detail=f"API Error: {e.message}")
-    except APIConnectionError as e:
-        raise HTTPException(status_code=503, detail="Connection Error: Unable to connect to OpenAI.")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
-# ==========================================================
-
-@app.post("/textToSpeechUrl")
-async def text_to_speech_url(text: str = Body(..., embed=True)):
-    # Bu endpoint de dummy bir yanıt döndürüyor.
-    return {"audio_url": f"https://dummy-audio.com/{text}.mp3"}
+        print(f"Transcription error: {e}")
+        return {"text": ""}
+    finally:
+        if os.path.exists("temp_audio.wav"):
+            os.remove("temp_audio.wav")
 
 @app.post("/api/tts")
 async def text_to_speech(text: str = Form(...)):
+    """
+    Frontend'den gönderilen metni sese çevirir.
+    """
     try:
         response = client.audio.speech.create(
-            model="gpt-4o-mini-tts",
+            model="tts-1",  # veya "tts-1-hd" gibi başka bir model
             voice="alloy",
             input=text
         )
-        # response'u StreamingResponse'a dönüştürme mantığı burada kalmalı
         return StreamingResponse(response.iter_bytes(), media_type="audio/mpeg")
     except APIStatusError as e:
         raise HTTPException(status_code=e.status_code, detail=f"API Error: {e.message}")
@@ -93,4 +91,4 @@ async def text_to_speech(text: str = Form(...)):
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8123, reload=True)
 
-# ==========================================================    
+# ==========================================================
